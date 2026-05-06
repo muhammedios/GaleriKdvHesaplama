@@ -21,7 +21,11 @@ enum CurrencyFormatter {
 
     private static let formatter: NumberFormatter = {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "tr_TR")
         formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = true
+        formatter.groupingSize = 3
+        formatter.secondaryGroupingSize = 3
         formatter.groupingSeparator = "."
         formatter.decimalSeparator = ","
         return formatter
@@ -29,7 +33,11 @@ enum CurrencyFormatter {
 
     private static let decimalFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "tr_TR")
         formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = true
+        formatter.groupingSize = 3
+        formatter.secondaryGroupingSize = 3
         formatter.groupingSeparator = "."
         formatter.decimalSeparator = ","
         formatter.minimumFractionDigits = 2

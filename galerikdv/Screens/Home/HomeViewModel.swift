@@ -43,6 +43,35 @@ final class HomeViewModel: ObservableObject {
         sellPrice = CurrencyFormatter.groupedInput(text)
     }
 
+	func applySalePrefill(from car: Car) {
+		switch car.source {
+		case .ihale:
+			selectedMode = .ihaledenAlis
+		case .esnaf:
+			selectedMode = .esnaftanAlis
+		case .sahis:
+			selectedMode = .sahistanAlis
+		case .diger:
+			selectedMode = .ihaledenAlis
+		}
+
+		isSpecialMatrahSelected = false
+		if let vatRate = car.vatRate, selectedMode != .sahistanAlis {
+			selectedVatRate = vatRate
+		} else if selectedMode == .sahistanAlis {
+			selectedVatRate = 20
+		}
+
+		let groupedPurchase = CurrencyFormatter.groupedInput(String(car.purchaseAmount))
+		switch selectedMode {
+		case .sahistanAlis:
+			buyPrice = groupedPurchase
+			sellPrice = ""
+		case .ihaledenAlis, .esnaftanAlis:
+			sellPrice = groupedPurchase
+		}
+	}
+
     private var previewValue: Double {
         let buy = Double(buyPrice.filter(\.isNumber)) ?? 0
         let sell = Double(sellPrice.filter(\.isNumber)) ?? 0
@@ -59,15 +88,12 @@ final class HomeViewModel: ObservableObject {
         case .sahistanAlis:
             // Sahistan alis: marj KDV'den arindirilip alis bedeline eklenir.
             return buy + (margin / sahistanVatMultiplier)
-        case .galeridenAlis:
+        case .esnaftanAlis:
             // KDV siz seceneginde satis tutari 1.01'e bolunerek hesaplanir.
             if isSpecialMatrahSelected {
                 return sell / 1.01
             }
-            // Galeriden alis: ihale moduyla ayni sekilde satis tutari KDV katsayisina bolunur.
-            return sell / vatMultiplier
-        case .esnaftanAlis:
-            // Esnaftan alis: ayni sekilde satis tutari KDV katsayisina bolunur.
+            // Esnaftan alis: ihale moduyla ayni sekilde satis tutari KDV katsayisina bolunur.
             return sell / vatMultiplier
         }
     }

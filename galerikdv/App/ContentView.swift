@@ -9,7 +9,7 @@ struct ContentView: View {
                 SplashView()
                     .transition(.opacity)
             } else {
-                HomeView()
+                MainTabView()
                     .transition(.opacity)
             }
         }
@@ -26,5 +26,7 @@ struct ContentView: View {
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
+			.environmentObject(CarStore())
+			.environmentObject(AppState())
     }
 }

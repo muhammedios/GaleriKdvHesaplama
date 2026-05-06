@@ -2,15 +2,13 @@ import SwiftUI
 import UIKit
 
 struct HomeView: View {
-    @Environment(\.openURL) private var openURL
-
+	@EnvironmentObject private var store: CarStore
+	@EnvironmentObject private var appState: AppState
     @StateObject private var viewModel = HomeViewModel()
     @State private var focusedField: Field?
-    @State private var isInfoMenuVisible = false
     @State private var showInputWarning = false
-
-    private let privacyURL = URL(string: "https://muhammedylmz.com/hesaplama/gizlilik")
-    private let termsURL = URL(string: "https://muhammedylmz.com/hesaplama/kosullar")
+	@State private var showSaleConfirm = false
+	@State private var saleConfirmCarID: UUID?
 
     private enum Field {
         case buyPrice
@@ -26,7 +24,6 @@ struct HomeView: View {
             )
                 .ignoresSafeArea()
                 .onTapGesture {
-                    isInfoMenuVisible = false
                     dismissKeyboard()
                 }
 
@@ -53,24 +50,37 @@ struct HomeView: View {
             .simultaneousGesture(
                 TapGesture().onEnded {
                     guard focusedField != nil else { return }
-                    isInfoMenuVisible = false
                     dismissKeyboard()
                 }
             )
-
-            if isInfoMenuVisible {
-                infoAlertOverlay
-                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
-                    .zIndex(20)
-            }
         }
-        .animation(.spring(response: 0.30, dampingFraction: 0.82), value: isInfoMenuVisible)
         .alert("Uyarı", isPresented: $showInputWarning) {
             Button("Tamam", role: .cancel) { }
         } message: {
             Text("Şahıstan Alış için alış ve satış alanlarının ikisi de dolu olmalı.")
         }
+		.alert("Satışı Onayla", isPresented: $showSaleConfirm) {
+			Button("Vazgeç", role: .cancel) {
+				clearPendingSale()
+			}
+			Button("Onayla") {
+				if let id = saleConfirmCarID {
+					store.setSold(true, id: id, soldAmount: currentSoldAmount)
+				}
+				clearPendingSale()
+			}
+		} message: {
+			Text("Aracın satışını onaylıyor musunuz?")
+		}
         .ignoresSafeArea(.keyboard, edges: .bottom)
+		.onChange(of: appState.pendingSaleCarID) { newValue in
+			guard let newValue, let car = store.car(id: newValue) else { return }
+			viewModel.applySalePrefill(from: car)
+		}
+		.onAppear {
+			guard let id = appState.pendingSaleCarID, let car = store.car(id: id) else { return }
+			viewModel.applySalePrefill(from: car)
+		}
     }
 
     private func dismissKeyboard() {
@@ -79,103 +89,12 @@ struct HomeView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .center) {
-            Text("Galeri KDV Hesaplama")
+        HStack {
+            Spacer(minLength: 0)
+            Text("Hesaplama")
                 .font(.system(size: 22, weight: .black))
                 .foregroundStyle(Color.appTitle)
-
-            Spacer()
-
-            Button {
-                withAnimation(.spring(response: 0.30, dampingFraction: 0.82)) {
-                    isInfoMenuVisible.toggle()
-                }
-            } label: {
-                ZStack {
-                    Circle()
-                        .fill(Color.clear)
-                        .frame(width: 32, height: 32)
-
-                    Image(systemName: "info.circle.fill")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(Color.appInfo)
-                }
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Bilgi")
-        }
-    }
-
-    private var infoAlertOverlay: some View {
-        ZStack {
-            Button {
-                isInfoMenuVisible = false
-            } label: {
-                Rectangle()
-                    .fill(Color.clear)
-                    .contentShape(Rectangle())
-                    .ignoresSafeArea()
-            }
-            .buttonStyle(.plain)
-
-            VStack(spacing: 12) {
-                Text("Bilgi")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(Color.appTitle)
-
-                Button {
-                    isInfoMenuVisible = false
-                    if let privacyURL {
-                        openURL(privacyURL)
-                    }
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "lock.shield")
-                            .font(.system(size: 12, weight: .semibold))
-                        Text("Gizlilik")
-                            .font(.system(size: 14, weight: .semibold))
-                    }
-                    .foregroundStyle(Color.appTitle)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(Color.appSurfaceLowest)
-                    .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
-
-                Button {
-                    isInfoMenuVisible = false
-                    if let termsURL {
-                        openURL(termsURL)
-                    }
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "doc.text")
-                            .font(.system(size: 12, weight: .semibold))
-                        Text("Koşullar")
-                            .font(.system(size: 14, weight: .semibold))
-                    }
-                    .foregroundStyle(Color.appTitle)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(Color.appSurfaceLowest)
-                    .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
-
-            }
-            .padding(16)
-            .frame(width: 286)
-            .background(.ultraThinMaterial)
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(Color.white.opacity(0.45), lineWidth: 0.8)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .shadow(color: .black.opacity(0.16), radius: 18, y: 8)
-            .onTapGesture {
-                // Prevent taps inside alert card from falling through to the backdrop.
-            }
+            Spacer(minLength: 0)
         }
     }
 
@@ -187,7 +106,7 @@ struct HomeView: View {
                 VStack(spacing: 14) {
                     HStack(spacing: 12) {
                         modeSelectionButton(.ihaledenAlis)
-                        modeSelectionButton(.galeridenAlis)
+                        modeSelectionButton(.esnaftanAlis)
                     }
 
                     HStack {
@@ -201,7 +120,7 @@ struct HomeView: View {
             .frame(height: 186)
 
             if viewModel.selectedMode != .sahistanAlis {
-                if viewModel.selectedMode == .galeridenAlis {
+                if viewModel.selectedMode == .esnaftanAlis {
                     HStack(spacing: 12) {
                         vatButton(rate: 1)
                         vatButton(rate: 20)
@@ -225,7 +144,7 @@ struct HomeView: View {
             if mode == .sahistanAlis {
                 viewModel.selectedVatRate = 20
                 viewModel.isSpecialMatrahSelected = false
-            } else if mode != .galeridenAlis {
+            } else if mode != .esnaftanAlis {
                 viewModel.isSpecialMatrahSelected = false
             }
         } label: {
@@ -341,6 +260,8 @@ struct HomeView: View {
                         showInputWarning = true
                     } else {
                         viewModel.calculate()
+						saleConfirmCarID = appState.pendingSaleCarID
+						showSaleConfirm = saleConfirmCarID != nil
                     }
                 } label: {
                     Text("Hesapla")
@@ -365,8 +286,18 @@ struct HomeView: View {
         .animation(.easeInOut(duration: 0.2), value: shouldShowBuyPriceInput)
     }
 
+	private func clearPendingSale() {
+		appState.pendingSaleCarID = nil
+		saleConfirmCarID = nil
+	}
+
+	private var currentSoldAmount: Int? {
+		let digits = viewModel.sellPrice.filter(\.isNumber)
+		return Int(digits)
+	}
+
     private var shouldShowBuyPriceInput: Bool {
-        viewModel.selectedMode != .ihaledenAlis && viewModel.selectedMode != .galeridenAlis
+        viewModel.selectedMode != .ihaledenAlis && viewModel.selectedMode != .esnaftanAlis
     }
 
     private var bothInputsFilled: Bool {
@@ -435,78 +366,7 @@ struct HomeView: View {
 struct HomeView_Previews: PreviewProvider {
     static var previews: some View {
         HomeView()
-    }
-}
-
-private struct FormattedNumberField: UIViewRepresentable {
-    @Binding var text: String
-    let placeholder: String
-    @Binding var isFocused: Bool
-
-    func makeUIView(context: Context) -> UITextField {
-        let textField = UITextField()
-        textField.delegate = context.coordinator
-        textField.keyboardType = .numberPad
-        textField.placeholder = placeholder
-        textField.font = .systemFont(ofSize: 22, weight: .bold)
-        textField.textColor = UIColor(Color.appInputText)
-        textField.tintColor = UIColor(Color.appGreenDark)
-        textField.borderStyle = .none
-        textField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        return textField
-    }
-
-    func updateUIView(_ uiView: UITextField, context: Context) {
-        if uiView.text != text {
-            uiView.text = text
-        }
-
-        if isFocused, !uiView.isFirstResponder {
-            uiView.becomeFirstResponder()
-        } else if !isFocused, uiView.isFirstResponder {
-            uiView.resignFirstResponder()
-        }
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text, isFocused: $isFocused)
-    }
-
-    final class Coordinator: NSObject, UITextFieldDelegate {
-        @Binding var text: String
-        @Binding var isFocused: Bool
-
-        init(text: Binding<String>, isFocused: Binding<Bool>) {
-            _text = text
-            _isFocused = isFocused
-        }
-
-        func textFieldDidBeginEditing(_ textField: UITextField) {
-            isFocused = true
-        }
-
-        func textFieldDidEndEditing(_ textField: UITextField) {
-            isFocused = false
-        }
-
-        func textField(
-            _ textField: UITextField,
-            shouldChangeCharactersIn range: NSRange,
-            replacementString string: String
-        ) -> Bool {
-            let currentText = textField.text ?? ""
-            guard let stringRange = Range(range, in: currentText) else { return false }
-
-            let updatedText = currentText.replacingCharacters(in: stringRange, with: string)
-            let formatted = CurrencyFormatter.groupedInput(updatedText)
-
-            text = formatted
-            textField.text = formatted
-
-            let endPosition = textField.endOfDocument
-            textField.selectedTextRange = textField.textRange(from: endPosition, to: endPosition)
-
-            return false
-        }
+			.environmentObject(CarStore())
+			.environmentObject(AppState())
     }
 }
